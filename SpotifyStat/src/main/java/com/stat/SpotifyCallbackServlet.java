@@ -131,7 +131,6 @@ public class SpotifyCallbackServlet extends HttpServlet {
     }
 
     private String parseAlbums(String jsonResponse) {
-        // Extract album names from tracks
         try {
             JSONObject jsonObject = new JSONObject(jsonResponse);
             JSONArray items = jsonObject.getJSONArray("items");
