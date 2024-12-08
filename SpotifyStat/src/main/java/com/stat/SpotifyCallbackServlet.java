@@ -13,13 +13,6 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Base64;
-import java.util.HashSet;
-
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
 
 @WebServlet("/callback")
 public class SpotifyCallbackServlet extends HttpServlet {
@@ -38,13 +31,11 @@ public class SpotifyCallbackServlet extends HttpServlet {
             return;
         }
 
-        // Exchange code for access token
         String accessToken = getAccessToken(code);
 
         if (accessToken != null) {
-            // Fetch user details using access token
-            String userDetails = fetchSpotifyUserDetails(accessToken);
-            request.setAttribute("userDetails", userDetails);
+            String userDetailsJson = fetchSpotifyUserDetails(accessToken);
+            request.setAttribute("userDetailsJson", userDetailsJson);
             request.getRequestDispatcher("home.jsp").forward(request, response);
         } else {
             response.getWriter().write("Failed to get access token!");
@@ -71,7 +62,6 @@ public class SpotifyCallbackServlet extends HttpServlet {
                 while ((line = reader.readLine()) != null) {
                     response.append(line);
                 }
-                // Parse JSON response to extract access token
                 String jsonResponse = response.toString();
                 return jsonResponse.split("\"access_token\":\"")[1].split("\"")[0];
             }
@@ -80,18 +70,21 @@ public class SpotifyCallbackServlet extends HttpServlet {
     }
 
     private String fetchSpotifyUserDetails(String accessToken) throws IOException {
-        StringBuilder userDetails = new StringBuilder();
+        JSONObject userDetails = new JSONObject();
 
-        // Fetch Top Artists
-        String topArtists = fetchSpotifyData("https://api.spotify.com/v1/me/top/artists?limit=5", accessToken);
-        userDetails.append("Top Artists:\n").append(parseNames(topArtists, "name")).append("\n\n");
+        String topArtistsJson = fetchSpotifyData("https://api.spotify.com/v1/me/top/artists?limit=15", accessToken);
+        JSONArray artists = parseArtistsWithLevels(topArtistsJson);
+        userDetails.put("highLevelArtists", getSubArray(artists, 0, 5));
+        userDetails.put("middleLevelArtists", getSubArray(artists, 5, 10));
 
-        // Fetch Top Tracks
-        String topTracks = fetchSpotifyData("https://api.spotify.com/v1/me/top/tracks?limit=20", accessToken);
-        userDetails.append("Top Tracks:\n").append(parseNames(topTracks, "name")).append("\n\n");
+        String topAlbumsJson = fetchSpotifyData("https://api.spotify.com/v1/me/top/tracks?limit=5", accessToken);
+        userDetails.put("topAlbums", parseAlbums(topAlbumsJson));
 
-        // Fetch Top Albums (from Top Tracks)
-        userDetails.append("Top Albums:\n").append(parseAlbums(topTracks)).append("\n\n");
+        String topGenresJson = fetchSpotifyData("https://api.spotify.com/v1/me/top/artists?limit=50", accessToken);
+        userDetails.put("topGenres", parseGenres(topGenresJson));
+        
+        String topTracksJson = fetchSpotifyData("https://api.spotify.com/v1/me/top/tracks?limit=20", accessToken);
+        userDetails.put("topTracks", parseTracks(topTracksJson));
 
         return userDetails.toString();
     }
@@ -114,39 +107,82 @@ public class SpotifyCallbackServlet extends HttpServlet {
         }
         return null;
     }
+    
+    private JSONArray parseTracks(String jsonResponse) {
+        JSONArray tracksArray = new JSONArray();
+        JSONObject jsonObject = new JSONObject(jsonResponse);
+        JSONArray items = jsonObject.getJSONArray("items");
 
-    private String parseNames(String jsonResponse, String key) {
-        // Extract values from JSON (e.g., artist names or track names)
-        try {
-            JSONObject jsonObject = new JSONObject(jsonResponse);
-            JSONArray items = jsonObject.getJSONArray("items");
-            StringBuilder names = new StringBuilder();
-            for (int i = 0; i < items.length(); i++) {
-                names.append(i + 1).append(". ").append(items.getJSONObject(i).getString(key)).append("\n");
-            }
-            return names.toString();
-        } catch (Exception e) {
-            return "Error parsing names: " + e.getMessage();
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject track = items.getJSONObject(i);
+            JSONObject trackDetails = new JSONObject();
+            trackDetails.put("name", track.getString("name"));
+            trackDetails.put("artist", track.getJSONArray("artists").getJSONObject(0).getString("name"));
+            trackDetails.put("album", track.getJSONObject("album").getString("name"));
+            trackDetails.put("image", track.getJSONObject("album").getJSONArray("images").length() > 0
+                    ? track.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url")
+                    : null);
+            tracksArray.put(trackDetails);
         }
+
+        return tracksArray;
     }
 
-    private String parseAlbums(String jsonResponse) {
-        try {
-            JSONObject jsonObject = new JSONObject(jsonResponse);
-            JSONArray items = jsonObject.getJSONArray("items");
-            StringBuilder albums = new StringBuilder();
-            HashSet<String> uniqueAlbums = new HashSet<>();
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject album = items.getJSONObject(i).getJSONObject("album");
-                String albumName = album.getString("name");
-                if (uniqueAlbums.add(albumName)) { // Avoid duplicates
-                    albums.append(uniqueAlbums.size()).append(". ").append(albumName).append("\n");
-                    if (uniqueAlbums.size() >= 5) break; // Limit to 5 albums
+    private JSONArray parseArtistsWithLevels(String jsonResponse) {
+        JSONArray artistsArray = new JSONArray();
+        JSONObject jsonObject = new JSONObject(jsonResponse);
+        JSONArray items = jsonObject.getJSONArray("items");
+
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject artist = items.getJSONObject(i);
+            JSONObject artistDetails = new JSONObject();
+            artistDetails.put("name", artist.getString("name"));
+            artistDetails.put("image", artist.getJSONArray("images").length() > 0 ? artist.getJSONArray("images").getJSONObject(0).getString("url") : null);
+            artistsArray.put(artistDetails);
+        }
+
+        return artistsArray;
+    }
+
+    private JSONArray parseAlbums(String jsonResponse) {
+        JSONArray albumsArray = new JSONArray();
+        JSONObject jsonObject = new JSONObject(jsonResponse);
+        JSONArray items = jsonObject.getJSONArray("items");
+
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject track = items.getJSONObject(i);
+            JSONObject album = track.getJSONObject("album");
+            JSONObject albumDetails = new JSONObject();
+            albumDetails.put("name", album.getString("name"));
+            albumDetails.put("image", album.getJSONArray("images").length() > 0 ? album.getJSONArray("images").getJSONObject(0).getString("url") : null);
+            albumsArray.put(albumDetails);
+        }
+
+        return albumsArray;
+    }
+
+    private JSONArray parseGenres(String jsonResponse) {
+        JSONObject jsonObject = new JSONObject(jsonResponse);
+        JSONArray items = jsonObject.getJSONArray("items");
+        JSONArray genres = new JSONArray();
+
+        for (int i = 0; i < items.length(); i++) {
+            JSONArray artistGenres = items.getJSONObject(i).getJSONArray("genres");
+            for (int j = 0; j < artistGenres.length(); j++) {
+                if (!genres.toList().contains(artistGenres.getString(j))) {
+                    genres.put(artistGenres.getString(j));
                 }
             }
-            return albums.toString();
-        } catch (Exception e) {
-            return "Error parsing albums: " + e.getMessage();
         }
+
+        return new JSONArray(genres.toList().subList(0, Math.min(5, genres.length())));
+    }
+
+    private JSONArray getSubArray(JSONArray array, int start, int end) {
+        JSONArray subArray = new JSONArray();
+        for (int i = start; i < end && i < array.length(); i++) {
+            subArray.put(array.get(i));
+        }
+        return subArray;
     }
 }
