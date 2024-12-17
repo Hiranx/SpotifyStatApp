@@ -171,6 +171,18 @@
             }
         %>
     </div>
+    <div class="mb-5">
+    <h3 class="text-center mb-4">Generate AI Playlist</h3>
+	    <form method="post" action="generatePlaylist" class="d-flex flex-column align-items-center">
+		    <div class="mb-3 w-50">
+		        <input type="text" name="prompt" class="form-control" placeholder="Enter your mood or music preference (e.g., 'Play happy music')" required>
+		    </div>
+		    <button type="submit" class="btn btn-success">Generate Playlist</button>
+		</form>
+
+
+	</div>
+    
 
     <footer>
         &copy; 2024 Spotify User Insights | Developed by Hiran Rathnayake

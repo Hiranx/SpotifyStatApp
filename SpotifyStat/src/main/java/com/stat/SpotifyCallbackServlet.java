@@ -12,6 +12,7 @@ import org.json.JSONObject;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Base64;
 
 @WebServlet("/callback")
@@ -25,6 +26,8 @@ public class SpotifyCallbackServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         String code = request.getParameter("code");
         String state = request.getParameter("state");
+        
+        
 
         if (code == null || state == null) {
             response.getWriter().write("Authorization failed!");
@@ -34,6 +37,7 @@ public class SpotifyCallbackServlet extends HttpServlet {
         String accessToken = getAccessToken(code);
 
         if (accessToken != null) {
+        	 request.getSession().setAttribute("accessToken", accessToken);
             String userDetailsJson = fetchSpotifyUserDetails(accessToken);
             request.setAttribute("userDetailsJson", userDetailsJson);
             request.getRequestDispatcher("home.jsp").forward(request, response);
@@ -143,6 +147,10 @@ public class SpotifyCallbackServlet extends HttpServlet {
 
         return artistsArray;
     }
+    
+    
+
+
 
     private JSONArray parseAlbums(String jsonResponse) {
         JSONArray albumsArray = new JSONArray();
@@ -177,6 +185,9 @@ public class SpotifyCallbackServlet extends HttpServlet {
 
         return new JSONArray(genres.toList().subList(0, Math.min(5, genres.length())));
     }
+    
+    
+
 
     private JSONArray getSubArray(JSONArray array, int start, int end) {
         JSONArray subArray = new JSONArray();
@@ -184,5 +195,39 @@ public class SpotifyCallbackServlet extends HttpServlet {
             subArray.put(array.get(i));
         }
         return subArray;
+    }
+    
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        String prompt = request.getParameter("prompt");
+
+        // Call Flask API to generate playlist
+        String playlistJson = generatePlaylistFromAPI(prompt);
+
+        if (playlistJson != null) {
+            // Send playlist back to frontend or store it as needed
+            request.setAttribute("playlistJson", playlistJson);
+            request.getRequestDispatcher("displayPlaylist.jsp").forward(request, response);
+        } else {
+            response.getWriter().write("Failed to generate playlist!");
+        }
+    }
+
+    private String generatePlaylistFromAPI(String prompt) throws IOException {
+        String apiUrl = "http://localhost:8090/generatePlaylist?prompt=" + URLEncoder.encode(prompt, "UTF-8");
+        URL url = new URL(apiUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+
+        if (conn.getResponseCode() == 200) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                return response.toString();
+            }
+        }
+        return null;
     }
 }
