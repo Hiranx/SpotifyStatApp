@@ -17,8 +17,8 @@ import java.util.Base64;
 
 @WebServlet("/callback")
 public class SpotifyCallbackServlet extends HttpServlet {
-    private static final String CLIENT_ID = "61c8cd337f314036ae037122ceb92039";
-    private static final String CLIENT_SECRET = "933d43292e054a93b9722e921b3e33e2";
+    private static final String CLIENT_ID = "#"; //add your one
+    private static final String CLIENT_SECRET = "#"; //add your one
     private static final String REDIRECT_URI = "http://localhost:8090/SpotifyStat/callback";
     private static final String TOKEN_URL = "https://accounts.spotify.com/api/token";
 
