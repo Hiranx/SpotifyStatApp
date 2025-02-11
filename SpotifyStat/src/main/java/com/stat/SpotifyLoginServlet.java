@@ -9,7 +9,7 @@ import java.io.IOException;
 
 @WebServlet("/SpotifyLoginServlet")
 public class SpotifyLoginServlet extends HttpServlet {
-    private static final String CLIENT_ID = "#"; //Add your one
+    private static final String CLIENT_ID = "61c8cd337f314036ae037122ceb92039";
     private static final String REDIRECT_URI = "http://localhost:8090/SpotifyStat/callback";
     private static final String SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
 
